@@ -1,6 +1,6 @@
 # H1.py
 # Author: Paul Talaga
-# 
+#
 # This file demonstrates how to implement various kinds of Roomba robot agents
 # and run them in GUI or non-gui mode using the roomba_sim library.
 #
@@ -12,14 +12,24 @@ from roomba_concurrent import *
 # All robots need to implement the runRobot(self) member function, as this is where
 # you will define that specific robot's characteristics.
 
-# All robots perceive their environment through self.percepts (a class variable) and 
+# All robots perceive their environment through self.percepts (a class variable) and
 # act on it through self.action.  The specific percepts received and actions allowed
 # are specific to the superclass.  See roomba_sim for details.
 
 # TunedRobot - Robot that acceps a chromosome parameter and can store limited state
 #               (a single number).  Continuous and dynamic environment.
-      
-      
+
+import time
+import random
+
+class Timer:
+  def __enter__(self):
+    self.start = time.clock()
+    return self
+
+  def __exit__(self, *args):
+    self.end = time.clock()
+    self.interval = self.end - self.start
 
 
 class TunedRobot(RealisticRobot):
@@ -32,8 +42,8 @@ class TunedRobot(RealisticRobot):
     self.state = 0
     # Save chromosome value
     self.degrees = chromosome
-      
-    
+
+
   def runRobot(self):
     (bstate, dirt) = self.percepts
     if(bstate == 'Bump'):
@@ -45,8 +55,29 @@ class TunedRobot(RealisticRobot):
 
 def getChromosome(rooms, start_location, min_clean):
     # Fill me in!
-    return 5
-        
+    timerArray = []
+    idx = 0
+
+    for r in rooms:
+      with Timer() as t:
+        c = random.randint(0,359)
+        runSimulation(num_robots = 1,
+                    min_clean = 0.95,
+                    num_trials = 1,
+                    room = allRooms[6],
+                    robot_type = TunedRobot,
+                    #ui_enable = True,
+                    ui_delay = 0.1,
+                    chromosome = c)
+      timerArray.append((t.interval,c))
+      print('%d: took %.03f sec.') % (timerArray[idx][1],timerArray[idx][0])
+      idx += 1
+    sorted_list = []
+    with Timer() as s:
+      sorted_list = sorted(timerArray, key=lambda tup: tup[0])
+    print(sorted_list)
+    return sorted_list[0][1]
+
 ############################################
 ## A few room configurations
 
@@ -86,7 +117,7 @@ mediumWalls5Room.setWall((26,25), (7,25))
 mediumWalls5Room.setWall((7,5), (7,22))
 allRooms.append(mediumWalls5Room) # [6]
 
-#############################################    
+#############################################
 def TunedTest1():
   print(runSimulation(num_robots = 1,
                     min_clean = 0.95,
@@ -96,7 +127,7 @@ def TunedTest1():
                     #ui_enable = True,
                     ui_delay = 0.1,
                     chromosome = 0))
-                    
+
 def TunedTest2():
   print(runSimulation(num_robots = 1,
                     min_clean = 0.95,
@@ -105,22 +136,22 @@ def TunedTest2():
                     robot_type = TunedRobot,
                     #ui_enable = True,
                     ui_delay = 0.1,
-                    chromosome = 2))                  
-
-
+                    chromosome = 2))
 
 if __name__ == "__main__":
   # This code will be run if this file is called on its own
-  TunedTest1()
+  #TunedTest1()
   #TunedTest2()
-  
+
   # This is an example of how we will test your program.  Our rooms will not be those listed above, but similar.
-  #rooms = [allRooms[1], allRooms[5]]
-  #startLoc = (5,5)
-  #minClean = 0.2
-  #chromosome = getChromosome(rooms, startLoc, minClean)
-  
+  rooms = [allRooms[1], allRooms[2], allRooms[3], allRooms[4], allRooms[5], allRooms[6]]
+  startLoc = (5,5)
+  minClean = 0.2
+  random.seed()
+  chromosome = getChromosome(rooms, startLoc, minClean)
+
+
   # Concurrent test execution.
-  #print(concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome))
+  print(concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome))
 
 
