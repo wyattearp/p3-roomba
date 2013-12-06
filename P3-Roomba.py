@@ -72,70 +72,122 @@ class TunedRobot(RealisticRobot):
       self.action = ('Suck',None)
     elif(self.state > 4):
       self.action = ('TurnRight',135 + self.degrees)
-      self.state = 0
     else:
       self.action = ('Forward',None)
-      self.state += 1
 
-all_possibles = range(0,360)
-current_list_of_possibles = all_possibles
-max_return = 10
+class Chromosome():
+  all_possibles = range(0,360)
+  current_list_of_possibles = all_possibles
 
-def getNextChoices(previous_list):
-  # this function will likely be wack
-  # keep top 5%
-  # drop bottom 20%
-  # change out X%
-  keep_list = previous_list[0]
-  bottom_list = previous_list[6:10]
-  remainder_list = previous_list[1:6]
-  current_list_of_possibles = set(current_list_of_possibles) - set(keep_list)
-  current_list_of_possibles = set(current_list_of_possibles) - set(bottom_list)
-  # so there are 4 items left in the original
-  # randomly pick one of them and put it back in the list of possibles
-  # randomly pick from the list of possibles and put it in place of the previous item
+  def getNextChoices(self,previous_list):
+    print("Pruning list:")
+    print(previous_list)
+    # this function will likely be wack
+    # keep top 5%
+    # drop bottom 20%
+    # change out XX%
+    # TODO: these statics will break if we make it all the way through the list
+    keep_list = previous_list[0]
+    bottom_list = previous_list[6:10]
+    remainder_list = previous_list[1:6]
+
+    # clear our previous list out of the list of possible to preven rework
+    self.current_list_of_possibles = list(set(self.current_list_of_possibles) - set(previous_list))
+    # for each of the remainders that didn't get dropped, mutate them closer
+    mutants_list = []
+    for i in remainder_list:
+      # march each item closer
+      value = i
+      if value > keep_list:
+        value -= 1
+      elif value < keep_list:
+        value += 1
+      elif value == keep_list:
+        value = None
+      # only add the item if its a new thing
+      if value:
+        mutants_list.append(value)
+
+    # clear the mutants_list out of the list
+    self.current_list_of_possibles = list(set(self.current_list_of_possibles) - set(mutants_list))
+
+    # we're keeping the top guy, so at most we can replace would be 9
+    need_to_replace = 9 - len(mutants_list)
+    new_breed_list = []
+    if (need_to_replace != 0):
+        # we need to add this many items to ones we've lost
+        print("Breeding %d new items") % (need_to_replace)
+        new_breed_list = self.getNewChoices(need_to_replace,self.current_list_of_possibles)
+
+    # remove our new breed from the current_list_of_possibles
+    self.current_list_of_possibles = list(set(self.current_list_of_possibles) - set(new_breed_list))
+
+    # return the contenders
+    new_list = [keep_list] + mutants_list + new_breed_list
+    print("New list of contenders:")
+    print(new_list)
+    return new_list
 
 
+  def getNewChoices(self,numChoices,list_of_choices):
+    choices = []
+    if(len(list_of_choices) >= numChoices):
+      for b in range(0,numChoices):
+        position = random.randint(0,len(list_of_choices)-1)
+        choices.append(list_of_choices[position])
+    else:
+      choices = list_of_choices
 
+    print("Returning %d new choices") % numChoices
+    print(choices)
 
-def getChromosome(rooms, start_location, min_clean):
-    numRooms = len(rooms)
-    unsorted_list = []
+    return choices
 
-    with Timer() as cd:
-      initTime = cd.start
-      c = 0;
+  def getChromosome(self,rooms, start_location, min_clean):
+      numRooms = len(rooms)
+      unsorted_list = []
 
-      while ((time.clock() - initTime) <= 50.0 and c < 361):
-        print("%f seconds left...") % (50.0 - (time.clock() - initTime))
-        # pick a number
-        # TODO: be smarter
-        c = c+1
-        average_time = 0.0
-        idx = 0
-        timerArray = []
+      with Timer() as cd:
+        initTime = cd.start
 
-        for r in rooms:
-          with Timer() as t:
-            result = runSimulation(num_robots = 1,
-                        min_clean = min_clean,
-                        start_location = start_location,
-                        num_trials = 1,
-                        room = r,
-                        robot_type = TunedRobot,
-                        #ui_enable = True,
-                        ui_delay = 0.1,
-                        chromosome = c)
-          timerArray.append(result[0])
-          idx += 1
-        # get the score to solve a room
-        # TODO: replace with std dev?
-        average_time = sum(timerArray) / long(len(timerArray))
-        unsorted_list.append((average_time,c))
-        #print("%d: provied average of %0.03f sec.") % (c,average_time)
-    # now sort the averages
-    sorted_list = sorted(unsorted_list, key=lambda tup: tup[0])
-    return sorted_list[0][1]
+        possibles = self.getNewChoices(10,self.all_possibles)
+        print("Starting with:")
+        print(possibles)
+
+        while ((time.clock() - initTime) <= 50.0 and len(possibles) > 1):
+          print("%f seconds left...") % (50.0 - (time.clock() - initTime))
+          result_list = []
+          run_result_list = []
+          for p in possibles:
+            print("P: %d") % p
+            for r in rooms:
+              result = runSimulation(num_robots = 1,
+                          min_clean = min_clean,
+                          start_location = start_location,
+                          num_trials = 1,
+                          room = r,
+                          robot_type = TunedRobot,
+                          #ui_enable = True,
+                          ui_delay = 0.1,
+                          chromosome = p)
+              
+              run_result_list.append(result[0])
+            # generate the average run for this item
+            average = sum(run_result_list) / len(run_result_list)
+            # store the average for later comparison
+            result_list.append((average,p))
+          # now sort the averages
+          sorted_list = sorted(result_list, key=lambda tup: tup[0])
+          # take the list of results and get the next ones
+          last_run_list = zip(*sorted_list)[1]
+          print("Results of the last run:")
+          print(sorted_list)
+
+          possibles = self.getNextChoices(last_run_list)
+          print("Retrying with the next list")
+          print(possibles)
+        # looks like we're out of time, return the best of the best
+        return possibles[0]
 
 ############################################
 ## A few room configurations
@@ -208,7 +260,8 @@ if __name__ == "__main__":
   minClean = 0.2
   random.seed()
   with Timer() as gcTime:
-    chromosome = getChromosome(rooms, startLoc, minClean)
+    c = Chromosome()
+    chromosome = c.getChromosome(rooms, startLoc, minClean)
   print("getChromosome took %00.03f sec") % gcTime.interval
 
 
