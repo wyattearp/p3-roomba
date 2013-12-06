@@ -54,27 +54,36 @@ class TunedRobot(RealisticRobot):
       self.action = ('Forward',None)
 
 def getChromosome(rooms, start_location, min_clean):
-    # Fill me in!
-    timerArray = []
-    idx = 0
+    numRooms = len(rooms)
+    unsorted_list = []
 
-    for r in rooms:
-      with Timer() as t:
-        c = random.randint(0,359)
-        runSimulation(num_robots = 1,
-                    min_clean = 0.95,
-                    num_trials = 1,
-                    room = allRooms[6],
-                    robot_type = TunedRobot,
-                    #ui_enable = True,
-                    ui_delay = 0.1,
-                    chromosome = c)
-      timerArray.append((t.interval,c))
-      print('%d: took %.03f sec.') % (timerArray[idx][1],timerArray[idx][0])
-      idx += 1
-    sorted_list = []
-    with Timer() as s:
-      sorted_list = sorted(timerArray, key=lambda tup: tup[0])
+    for rep in range(0,numRooms):
+      # pick a number
+      c = random.randint(0,359)
+      average_time = 0.0
+      idx = 0
+      timerArray = []
+
+      for r in rooms:
+        with Timer() as t:
+          runSimulation(num_robots = 1,
+                      min_clean = 0.95,
+                      num_trials = 1,
+                      room = allRooms[6],
+                      robot_type = TunedRobot,
+                      #ui_enable = True,
+                      ui_delay = 0.1,
+                      chromosome = c)
+        timerArray.append(t.interval)
+        print('%d: took %.03f sec.') % (c,timerArray[idx])
+        idx += 1
+      # get the average time to solve a room
+      # TODO: replace with std dev?
+      average_time = sum(timerArray) / long(len(timerArray))
+      unsorted_list.append((average_time,c))
+      print("%d provied average of %0.03f sec.") % (c,average_time)
+    # now sort the averages
+    sorted_list = sorted(unsorted_list, key=lambda tup: tup[0])
     print(sorted_list)
     return sorted_list[0][1]
 
@@ -144,14 +153,28 @@ if __name__ == "__main__":
   #TunedTest2()
 
   # This is an example of how we will test your program.  Our rooms will not be those listed above, but similar.
-  rooms = [allRooms[1], allRooms[2], allRooms[3], allRooms[4], allRooms[5], allRooms[6]]
+  rooms = [allRooms[1], allRooms[5]]
   startLoc = (5,5)
   minClean = 0.2
   random.seed()
-  chromosome = getChromosome(rooms, startLoc, minClean)
+  with Timer() as gcTime:
+    chromosome = getChromosome(rooms, startLoc, minClean)
+  print("getChromosome took %00.03f sec") % gcTime.interval
 
 
   # Concurrent test execution.
-  print(concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome))
+  myTunedRobotResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome)
+  reactiveAgentResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = 0)
+
+  if (myTunedRobotResult < reactiveAgentResult):
+    print("Chromosome %d did better than a simple reactive agent, %f < %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+  elif (myTunedRobotResult > reactiveAgentResult):
+    print("Chromosome %d sucked (but in a bad way) more than a simple reactive agent, %f > %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+  elif (myTunedRobotResult == reactiveAgentResult):
+    # this probably shouldn't be possible
+    print("Weirdness Alert! Chromosome %d tied simple reactive agent, %f == %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+
+
+
 
 
