@@ -31,6 +31,26 @@ class Timer:
     self.end = time.clock()
     self.interval = self.end - self.start
 
+class TunedRobotDefault(RealisticRobot):
+  """ The ReflexRobotState robot is similar to the ReflexRobot, but some
+    state is allowed in the form of a number.
+  """
+  def __init__(self,room,speed, start_location = -1, chromosome = None):
+    super(TunedRobotDefault, self).__init__(room,speed, start_location)
+    # Set initial state here you may only store a single number.
+    self.state = 0
+    # Save chromosome value
+    self.degrees = chromosome
+
+
+  def runRobot(self):
+    (bstate, dirt) = self.percepts
+    if(bstate == 'Bump'):
+      self.action = ('TurnRight',135 + self.degrees)
+    elif(dirt == 'Dirty'):
+      self.action = ('Suck',None)
+    else:
+      self.action = ('Forward',None)
 
 class TunedRobot(RealisticRobot):
   """ The ReflexRobotState robot is similar to the ReflexRobot, but some
@@ -50,8 +70,33 @@ class TunedRobot(RealisticRobot):
       self.action = ('TurnRight',135 + self.degrees)
     elif(dirt == 'Dirty'):
       self.action = ('Suck',None)
+    elif(self.state > 4):
+      self.action = ('TurnRight',135 + self.degrees)
+      self.state = 0
     else:
       self.action = ('Forward',None)
+      self.state += 1
+
+all_possibles = range(0,360)
+current_list_of_possibles = all_possibles
+max_return = 10
+
+def getNextChoices(previous_list):
+  # this function will likely be wack
+  # keep top 5%
+  # drop bottom 20%
+  # change out X%
+  keep_list = previous_list[0]
+  bottom_list = previous_list[6:10]
+  remainder_list = previous_list[1:6]
+  current_list_of_possibles = set(current_list_of_possibles) - set(keep_list)
+  current_list_of_possibles = set(current_list_of_possibles) - set(bottom_list)
+  # so there are 4 items left in the original
+  # randomly pick one of them and put it back in the list of possibles
+  # randomly pick from the list of possibles and put it in place of the previous item
+
+
+
 
 def getChromosome(rooms, start_location, min_clean):
     numRooms = len(rooms)
@@ -59,37 +104,37 @@ def getChromosome(rooms, start_location, min_clean):
 
     with Timer() as cd:
       initTime = cd.start
+      c = 0;
 
-      while ((time.clock() - initTime) <= 45.0):
-        print("%f seconds left...") % (45.0 - (time.clock() - initTime))
+      while ((time.clock() - initTime) <= 50.0 and c < 361):
+        print("%f seconds left...") % (50.0 - (time.clock() - initTime))
         # pick a number
         # TODO: be smarter
-        c = random.randint(0,359)
+        c = c+1
         average_time = 0.0
         idx = 0
         timerArray = []
 
         for r in rooms:
           with Timer() as t:
-            runSimulation(num_robots = 1,
-                        min_clean = 0.95,
+            result = runSimulation(num_robots = 1,
+                        min_clean = min_clean,
+                        start_location = start_location,
                         num_trials = 1,
-                        room = allRooms[6],
+                        room = r,
                         robot_type = TunedRobot,
                         #ui_enable = True,
                         ui_delay = 0.1,
                         chromosome = c)
-          timerArray.append(t.interval)
-          print('%d: took %.03f sec.') % (c,timerArray[idx])
+          timerArray.append(result[0])
           idx += 1
-        # get the average time to solve a room
+        # get the score to solve a room
         # TODO: replace with std dev?
         average_time = sum(timerArray) / long(len(timerArray))
         unsorted_list.append((average_time,c))
-        print("%d: provied average of %0.03f sec.") % (c,average_time)
+        #print("%d: provied average of %0.03f sec.") % (c,average_time)
     # now sort the averages
     sorted_list = sorted(unsorted_list, key=lambda tup: tup[0])
-    print(sorted_list)
     return sorted_list[0][1]
 
 ############################################
@@ -169,7 +214,7 @@ if __name__ == "__main__":
 
   # Concurrent test execution.
   myTunedRobotResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome)
-  reactiveAgentResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = 0)
+  reactiveAgentResult = concurrent_test(TunedRobotDefault, rooms, num_trials = 20, min_clean = minClean, chromosome = 0)
 
   if (myTunedRobotResult < reactiveAgentResult):
     print("Chromosome %d did better (by %0.0f%%) than a simple reactive agent, %f < %f") % (chromosome, (100 - (myTunedRobotResult / reactiveAgentResult)*100), myTunedRobotResult,reactiveAgentResult)
