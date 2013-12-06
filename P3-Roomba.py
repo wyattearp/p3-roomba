@@ -57,31 +57,36 @@ def getChromosome(rooms, start_location, min_clean):
     numRooms = len(rooms)
     unsorted_list = []
 
-    for rep in range(0,numRooms):
-      # pick a number
-      c = random.randint(0,359)
-      average_time = 0.0
-      idx = 0
-      timerArray = []
+    with Timer() as cd:
+      initTime = cd.start
 
-      for r in rooms:
-        with Timer() as t:
-          runSimulation(num_robots = 1,
-                      min_clean = 0.95,
-                      num_trials = 1,
-                      room = allRooms[6],
-                      robot_type = TunedRobot,
-                      #ui_enable = True,
-                      ui_delay = 0.1,
-                      chromosome = c)
-        timerArray.append(t.interval)
-        print('%d: took %.03f sec.') % (c,timerArray[idx])
-        idx += 1
-      # get the average time to solve a room
-      # TODO: replace with std dev?
-      average_time = sum(timerArray) / long(len(timerArray))
-      unsorted_list.append((average_time,c))
-      print("%d provied average of %0.03f sec.") % (c,average_time)
+      while ((time.clock() - initTime) <= 45.0):
+        print("%f seconds left...") % (45.0 - (time.clock() - initTime))
+        # pick a number
+        # TODO: be smarter
+        c = random.randint(0,359)
+        average_time = 0.0
+        idx = 0
+        timerArray = []
+
+        for r in rooms:
+          with Timer() as t:
+            runSimulation(num_robots = 1,
+                        min_clean = 0.95,
+                        num_trials = 1,
+                        room = allRooms[6],
+                        robot_type = TunedRobot,
+                        #ui_enable = True,
+                        ui_delay = 0.1,
+                        chromosome = c)
+          timerArray.append(t.interval)
+          print('%d: took %.03f sec.') % (c,timerArray[idx])
+          idx += 1
+        # get the average time to solve a room
+        # TODO: replace with std dev?
+        average_time = sum(timerArray) / long(len(timerArray))
+        unsorted_list.append((average_time,c))
+        print("%d: provied average of %0.03f sec.") % (c,average_time)
     # now sort the averages
     sorted_list = sorted(unsorted_list, key=lambda tup: tup[0])
     print(sorted_list)
@@ -167,7 +172,7 @@ if __name__ == "__main__":
   reactiveAgentResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = 0)
 
   if (myTunedRobotResult < reactiveAgentResult):
-    print("Chromosome %d did better than a simple reactive agent, %f < %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+    print("Chromosome %d did better (by %0.0f%%) than a simple reactive agent, %f < %f") % (chromosome, (100 - (myTunedRobotResult / reactiveAgentResult)*100), myTunedRobotResult,reactiveAgentResult)
   elif (myTunedRobotResult > reactiveAgentResult):
     print("Chromosome %d sucked (but in a bad way) more than a simple reactive agent, %f > %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
   elif (myTunedRobotResult == reactiveAgentResult):
