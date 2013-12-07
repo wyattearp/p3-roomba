@@ -70,8 +70,6 @@ class TunedRobot(RealisticRobot):
       self.action = ('TurnRight',135 + self.degrees)
     elif(dirt == 'Dirty'):
       self.action = ('Suck',None)
-    elif(self.state > 4):
-      self.action = ('TurnRight',135 + self.degrees)
     else:
       self.action = ('Forward',None)
 
@@ -80,8 +78,8 @@ class Chromosome():
   current_list_of_possibles = all_possibles
 
   def getNextChoices(self,previous_list):
-    print("Pruning list:")
-    print(previous_list)
+    #print("Pruning list:")
+    #print(previous_list)
     # this function will likely be wack
     # keep top 5%
     # drop bottom 20%
@@ -116,7 +114,7 @@ class Chromosome():
     new_breed_list = []
     if (need_to_replace != 0):
         # we need to add this many items to ones we've lost
-        print("Breeding %d new items") % (need_to_replace)
+        #print("Breeding %d new items") % (need_to_replace)
         new_breed_list = self.getNewChoices(need_to_replace,self.current_list_of_possibles)
 
     # remove our new breed from the current_list_of_possibles
@@ -124,8 +122,8 @@ class Chromosome():
 
     # return the contenders
     new_list = [keep_list] + mutants_list + new_breed_list
-    print("New list of contenders:")
-    print(new_list)
+    #print("New list of contenders:")
+    #print(new_list)
     return new_list
 
 
@@ -138,8 +136,8 @@ class Chromosome():
     else:
       choices = list_of_choices
 
-    print("Returning %d new choices") % numChoices
-    print(choices)
+    #print("Returning %d new choices") % numChoices
+    #print(choices)
 
     return choices
 
@@ -151,15 +149,15 @@ class Chromosome():
         initTime = cd.start
 
         possibles = self.getNewChoices(10,self.all_possibles)
-        print("Starting with:")
-        print(possibles)
+        #print("Starting with:")
+        #print(possibles)
 
         while ((time.clock() - initTime) <= 50.0 and len(possibles) > 1):
-          print("%f seconds left...") % (50.0 - (time.clock() - initTime))
+          #print("%f seconds left...") % (50.0 - (time.clock() - initTime))
           result_list = []
           run_result_list = []
           for p in possibles:
-            print("P: %d") % p
+            #print("P: %d") % p
             for r in rooms:
               result = runSimulation(num_robots = 1,
                           min_clean = min_clean,
@@ -180,12 +178,12 @@ class Chromosome():
           sorted_list = sorted(result_list, key=lambda tup: tup[0])
           # take the list of results and get the next ones
           last_run_list = zip(*sorted_list)[1]
-          print("Results of the last run:")
-          print(sorted_list)
+          #print("Results of the last run:")
+          #print(sorted_list)
 
           possibles = self.getNextChoices(last_run_list)
-          print("Retrying with the next list")
-          print(possibles)
+          #print("Retrying with the next list")
+          #print(possibles)
         # looks like we're out of time, return the best of the best
         return possibles[0]
 
@@ -259,23 +257,41 @@ if __name__ == "__main__":
   startLoc = (5,5)
   minClean = 0.2
   random.seed()
-  with Timer() as gcTime:
-    c = Chromosome()
-    chromosome = c.getChromosome(rooms, startLoc, minClean)
-  print("getChromosome took %00.03f sec") % gcTime.interval
+  win = 0
+  loss = 0
+  tie = 0
+  for r in range(0,1000):
+    print("######################")
+    print("       RUN %0000d     ") % r
+    print("######################")
+    
+    with Timer() as gcTime:
+      c = Chromosome()
+      chromosome = c.getChromosome(rooms, startLoc, minClean)
+    print("getChromosome took %00.03f sec") % gcTime.interval
+  
+    # Concurrent test execution.
+    myTunedRobotResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome)
+    reactiveAgentResult = concurrent_test(TunedRobotDefault, rooms, num_trials = 20, min_clean = minClean, chromosome = 0)
+    
+    # process the results
+    if (myTunedRobotResult < reactiveAgentResult):
+      print("Chromosome %d did better (by %0.0f%%) than a simple reactive agent, %f < %f") % (chromosome, (100 - (myTunedRobotResult / reactiveAgentResult)*100), myTunedRobotResult,reactiveAgentResult)
+      win += 1
+    elif (myTunedRobotResult > reactiveAgentResult):
+      print("Chromosome %d sucked (but in a bad way) more than a simple reactive agent, %f > %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+      loss += 1
+    elif (myTunedRobotResult == reactiveAgentResult):
+      # this probably shouldn't be possible
+      print("Weirdness Alert! Chromosome %d tied simple reactive agent, %f == %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+      tie += 1
+    print("\tw: %d, \tl: %d, \tt: %d") %(win,loss,tie)
 
-
-  # Concurrent test execution.
-  myTunedRobotResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome)
-  reactiveAgentResult = concurrent_test(TunedRobotDefault, rooms, num_trials = 20, min_clean = minClean, chromosome = 0)
-
-  if (myTunedRobotResult < reactiveAgentResult):
-    print("Chromosome %d did better (by %0.0f%%) than a simple reactive agent, %f < %f") % (chromosome, (100 - (myTunedRobotResult / reactiveAgentResult)*100), myTunedRobotResult,reactiveAgentResult)
-  elif (myTunedRobotResult > reactiveAgentResult):
-    print("Chromosome %d sucked (but in a bad way) more than a simple reactive agent, %f > %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
-  elif (myTunedRobotResult == reactiveAgentResult):
-    # this probably shouldn't be possible
-    print("Weirdness Alert! Chromosome %d tied simple reactive agent, %f == %f") % (chromosome,myTunedRobotResult,reactiveAgentResult)
+  # see how we did on average
+  print("Machine verses the mutated machine:")
+  print("The machine: %d") % loss
+  print("The mutated machine: %d") % win
+  print("Based on the law of averages, we " + "won" if win > loss else "lost")
 
 
 
