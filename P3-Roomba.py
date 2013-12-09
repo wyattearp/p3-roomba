@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # H1.py
 # Author: Paul Talaga
 #
@@ -21,6 +22,9 @@ from roomba_concurrent import *
 
 import time
 import random
+import sys
+
+DEBUG_PRINT = False
 
 class Timer:
   def __enter__(self):
@@ -60,21 +64,34 @@ class TunedRobot(RealisticRobot):
     super(TunedRobot, self).__init__(room,speed, start_location)
     # Set initial state here you may only store a single number.
     self.state = 0
-    # Save chromosome value
+    # Setup robot based on chromosome
     self.degrees = chromosome
-
+    # NOTE: these values are saved purely for programming clarity, they are statically set based on the chromosome
+    # passed in when creating the robot and control the number of F-->R steps to create a looping motion
+    self.mod_dir1 = chromosome % 4
+    self.mod_dir2 = (self.mod_dir1*self.mod_dir1)-1
 
   def runRobot(self):
     (bstate, dirt) = self.percepts
+    self.state += 1
     if(bstate == 'Bump'):
-      self.action = ('TurnRight',135 + self.degrees)
+      self.action = ('TurnRight', self.degrees)
+      self.state = 0
     elif(dirt == 'Dirty'):
       self.action = ('Suck',None)
+    elif((self.mod_dir1 > 0) and (self.mod_dir2 > 0)):
+      if((self.state > 0) and (self.state % self.mod_dir2 == 1)):
+        self.action = ('TurnRight', 90)
+        #self.action = ('Forward',None)
+      elif((self.state > 0) and (self.state % self.mod_dir1 == 1)):
+        self.action = ('TurnRight', 90)
+      else:
+        self.action = ('Forward',None)
     else:
       self.action = ('Forward',None)
 
 class Chromosome():
-  all_possibles = range(0,360)
+  all_possibles = range(1,270)
   current_list_of_possibles = all_possibles
 
   def getNextChoices(self,previous_list):
@@ -84,7 +101,7 @@ class Chromosome():
     # keep top 5%
     # drop bottom 20%
     # change out XX%
-    # TODO: these statics will break if we make it all the way through the list
+    # TODO: these statics will possibly break if we make it all the way through the list
     keep_list = previous_list[0]
     bottom_list = previous_list[6:10]
     remainder_list = previous_list[1:6]
@@ -165,8 +182,8 @@ class Chromosome():
                           num_trials = 1,
                           room = r,
                           robot_type = TunedRobot,
-                          #ui_enable = True,
-                          ui_delay = 0.1,
+                          #ui_enable = DEBUG_PRINT,
+                          ui_delay = 0.01,
                           chromosome = p)
               
               run_result_list.append(result[0])
@@ -260,7 +277,17 @@ if __name__ == "__main__":
   win = 0
   loss = 0
   tie = 0
-  for r in range(0,1000):
+  num_runs = 1
+  timesToAverage = []
+  if (len(sys.argv) > 1):
+    num_runs = int(sys.argv[1])
+  if num_runs > 1:
+    print("Performing %d runs") % num_runs
+
+  if (len(sys.argv) > 2):
+    DEBUG_PRINT = True
+
+  for r in range(0,num_runs):
     print("######################")
     print("       RUN %0000d     ") % r
     print("######################")
@@ -269,6 +296,7 @@ if __name__ == "__main__":
       c = Chromosome()
       chromosome = c.getChromosome(rooms, startLoc, minClean)
     print("getChromosome took %00.03f sec") % gcTime.interval
+    timesToAverage.append(gcTime.interval)
   
     # Concurrent test execution.
     myTunedRobotResult = concurrent_test(TunedRobot, rooms, num_trials = 20, min_clean = minClean, chromosome = chromosome)
@@ -291,7 +319,10 @@ if __name__ == "__main__":
   print("Machine verses the mutated machine:")
   print("The machine: %d") % loss
   print("The mutated machine: %d") % win
-  print("Based on the law of averages, we " + "won" if win > loss else "lost")
+  print("On average, we %s" ) % ("won" if win > loss else "lost")
+  print("On average, getChromosome ran for: %00.03f sec") % (sum(timesToAverage) / (len(timesToAverage)*1.0))
+  if win > loss:
+    print("Win percentage %2.0f%%") % ((win*1.0 / num_runs*1.0)*100.0)
 
 
 
